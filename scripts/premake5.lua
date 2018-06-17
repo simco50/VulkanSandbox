@@ -6,6 +6,12 @@ workspace "VulkanBase"
 	characterset ("MBCS")
 	language "C++"
 
+	configuration "vs*"
+		defines { "PLATFORM_WINDOWS" }
+
+	configuration "linux"
+		defines { "PLATFORM_LINUX" }
+
 	project "VulkanBase"
 		filename "VulkanBase"
    		rtti "Off"
@@ -42,22 +48,29 @@ workspace "VulkanBase"
 			"../external/SDL2-2.0.7/lib/%{cfg.platform}",
 		}
 
-		filter { "platforms:x86" }
-			libdirs
-			{
-				"../external/VulkanSDK/1.1.73.0/Lib32",
-			}
-
-		filter { "platforms:x64" }
-			libdirs
-			{
-				"../external/VulkanSDK/1.1.73.0/Lib",
-			}
+		links
+		{
+			"vulkan-1.lib",		
+			"sdl2.lib",		
+			"sdl2main.lib",		
+		}
 
 		postbuildcommands
 		{ 
 			"{COPY} \"$(SolutionDir)external\\SDL2-2.0.7\\lib\\%{cfg.platform}\\SDL2.dll\" \"$(OutDir)\"",
 		}
+
+		filter { "platforms:x86" }
+			libdirs
+			{
+				"../external/VulkanSDK/1.1.73.0/Lib32"
+			}
+
+		filter { "platforms:x64" }
+			libdirs
+			{
+				"../external/VulkanSDK/1.1.73.0/Lib"
+			}
 
 newaction {
 	trigger     = "clean",

@@ -515,7 +515,7 @@ void Graphics::CopyBufferWithStaging(VkBuffer targetBuffer, void* pData)
 
 	void* pTarget = nullptr;
 	vkMapMemory(m_Device, stagingMemory, 0, memoryRequirements.size, 0, &pTarget);
-	memcpy(pTarget, pData, memoryRequirements.size);
+	memcpy(pTarget, pData, (size_t)memoryRequirements.size);
 	vkUnmapMemory(m_Device, stagingMemory);
 
 	VkBufferCopy copyRegion;

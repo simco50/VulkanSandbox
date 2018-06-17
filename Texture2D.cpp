@@ -144,7 +144,7 @@ bool Texture2D::SetData(const unsigned int mipLevel, int x, int y, int width, in
 
 	void* pTarget = nullptr;
 	vkMapMemory(m_pGraphics->GetDevice(), stagingMemory, 0, memReqs.size, 0, &pTarget);
-	memcpy(pTarget, pData, memReqs.size);
+	memcpy(pTarget, pData, (size_t)memReqs.size);
 	vkUnmapMemory(m_pGraphics->GetDevice(), stagingMemory);
 
 	VkBufferImageCopy copyRegion = {};
