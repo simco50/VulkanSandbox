@@ -24,15 +24,10 @@ workspace "VulkanBase"
 
 		files
 		{ 
-			"../**.h",
-			"../**.hpp",
-			"../**.cpp",
-			"../**.inl"
-		}
-
-		excludes
-		{
-			"../external/**"
+			"../*.h",
+			"../*.hpp",
+			"../*.cpp",
+			"../*.inl"
 		}
 
 		includedirs 
@@ -40,7 +35,6 @@ workspace "VulkanBase"
 			"../external/SDL2-2.0.7/include",
 			"../external/VulkanSDK/1.1.73.0/include",
 			"../external/glm",
-			"../external/SPIRV-cross/include",
 		}
 
 		libdirs

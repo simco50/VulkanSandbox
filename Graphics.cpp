@@ -16,9 +16,6 @@ Graphics::~Graphics()
 {
 }
 
-#define CHECK_VK_RESULT(result) \
-	if(result != VkResult::VK_SUCCESS) { std::cout << "Vulkan Error" << std::endl; return; } \
-
 HWND Graphics::GetWindow() const
 {
 	SDL_SysWMinfo sysInfo;
@@ -105,30 +102,6 @@ void Graphics::Initialize()
 
 	//Specific initialization
 
-	//Create uniform buffer
-	struct ModelBuffer
-	{
-		glm::mat4 ModelMatrix;
-		glm::mat4 MvpMatrix;
-	} ModelBufferData;
-
-	m_ProjectionMatrix = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 100.0f);
-	m_ViewMatrix = glm::lookAt(
-		glm::vec3(-5, 3, -10), // Camera is at (-5,3,-10), in World Space
-		glm::vec3(0, 0, 0),    // and looks at the origin
-		glm::vec3(0, -1, 0)    // Head is up (set to 0,-1,0 to look upside-down)
-	);
-	m_ModelMatrix = glm::mat4(1.0f);
-	m_MvpMatrix = m_ProjectionMatrix * m_ViewMatrix * m_ModelMatrix;
-
-	ModelBufferData.MvpMatrix = m_MvpMatrix;
-	ModelBufferData.ModelMatrix = m_ModelMatrix;
-
-	m_pUniformBuffer = new UniformBuffer(this);
-	m_pUniformBuffer->SetSize(sizeof(ModelBuffer));
-	m_pUniformBuffer->SetData(0, sizeof(ModelBuffer), &ModelBufferData);
-	VkDescriptorBufferInfo bufferInfo = m_pUniformBuffer->GetDescriptorInfo();
-
 	//Create descriptor set layout
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings(2);
 	layoutBindings[0].binding = 0;
@@ -142,8 +115,6 @@ void Graphics::Initialize()
 	layoutBindings[1].pImmutableSamplers = nullptr;
 	layoutBindings[1].descriptorCount = 1;
 	layoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-#define NUM_DESCRIPTOR_SETS 1
 
 	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
 	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -184,10 +155,10 @@ void Graphics::Initialize()
 	VkDescriptorSetAllocateInfo descriptorAllocateInfo[1];
 	descriptorAllocateInfo[0].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descriptorAllocateInfo[0].descriptorPool = m_DescriptorPool;
-	descriptorAllocateInfo[0].descriptorSetCount = NUM_DESCRIPTOR_SETS;
+	descriptorAllocateInfo[0].descriptorSetCount = 1;
 	descriptorAllocateInfo[0].pNext = nullptr;
 	descriptorAllocateInfo[0].pSetLayouts = &m_DescriptorSetLayout;
-	m_DescriptorSets.resize(NUM_DESCRIPTOR_SETS);
+	m_DescriptorSets.resize(1);
 	VulkanTranslateError(vkAllocateDescriptorSets(m_Device, descriptorAllocateInfo, m_DescriptorSets.data()));
 
 	Shader* pShader = new Shader(m_Device);
@@ -270,18 +241,31 @@ void Graphics::Initialize()
 	bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 	bindingDesc.stride = sizeof(SampleVertex);
 	VkVertexInputAttributeDescription attributeDesc[3];
+	int offset = 0;
 	attributeDesc[0].binding = 0;
 	attributeDesc[0].location = 0;
 	attributeDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDesc[0].offset = 0;
+	attributeDesc[0].offset = offset;
+	offset += sizeof(glm::vec3);
 	attributeDesc[1].binding = 0;
 	attributeDesc[1].location = 1;
 	attributeDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDesc[1].offset = 12;
+	attributeDesc[1].offset = offset;
+	offset += sizeof(glm::vec3);
 	attributeDesc[2].binding = 0;
 	attributeDesc[2].location = 2;
 	attributeDesc[2].format = VK_FORMAT_R32G32_SFLOAT;
-	attributeDesc[2].offset = 24;
+	attributeDesc[2].offset = offset;
+
+	//Pipeline vertex input state
+	VkPipelineVertexInputStateCreateInfo vertexStateInfo = {};
+	vertexStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexStateInfo.pNext = nullptr;
+	vertexStateInfo.flags = 0;
+	vertexStateInfo.vertexBindingDescriptionCount = 1;
+	vertexStateInfo.pVertexBindingDescriptions = &bindingDesc;
+	vertexStateInfo.vertexAttributeDescriptionCount = 3;
+	vertexStateInfo.pVertexAttributeDescriptions = attributeDesc;
 
 	m_pIndexBuffer = new IndexBuffer(this);
 	m_pIndexBuffer->SetSize((int)indices.size(), false, false);
@@ -290,13 +274,39 @@ void Graphics::Initialize()
 	m_pImageTexture = new Texture2D(this);
 	m_pImageTexture->Load("Resources/Textures/spot.png");
 
-	VkDescriptorBufferInfo ubInfo = m_pUniformBuffer->GetDescriptorInfo();
-	
 	VkDescriptorImageInfo texInfo;
 	texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	texInfo.imageView = (VkImageView)m_pImageTexture->GetView();
 	texInfo.sampler = (VkSampler)m_pImageTexture->GetSampler();
-	
+
+	//Create uniform buffer
+	struct ModelBuffer
+	{
+		glm::mat4 ModelMatrix;
+		glm::mat4 MvpMatrix;
+	} ModelBufferData;
+
+	m_ProjectionMatrix = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 100.0f);
+	m_ViewMatrix = glm::lookAt(
+		glm::vec3(-5, 3, -10), // Camera is at (-5,3,-10), in World Space
+		glm::vec3(0, 0, 0),    // and looks at the origin
+		glm::vec3(0, -1, 0)    // Head is up (set to 0,-1,0 to look upside-down)
+	);
+	m_ModelMatrix = glm::mat4(1.0f);
+	m_MvpMatrix = m_ProjectionMatrix * m_ViewMatrix * m_ModelMatrix;
+
+	ModelBufferData.MvpMatrix = m_MvpMatrix;
+	ModelBufferData.ModelMatrix = m_ModelMatrix;
+
+	m_pUniformBuffer = new UniformBuffer(this);
+	m_pUniformBuffer->SetSize(sizeof(ModelBuffer));
+	m_pUniformBuffer->SetData(0, sizeof(ModelBuffer), &ModelBufferData);
+
+	VkDescriptorBufferInfo ubInfo = {};
+	ubInfo.buffer = m_pUniformBuffer->GetBuffer();
+	ubInfo.range = m_pUniformBuffer->GetSize();
+	ubInfo.offset = 0;
+
 	std::vector<VkWriteDescriptorSet> writes(2);
 	writes[0] = {};
 	writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -304,9 +314,10 @@ void Graphics::Initialize()
 	writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	writes[0].dstBinding = 0;
 	writes[0].dstSet = m_DescriptorSets[0];
-	writes[0].pBufferInfo = &bufferInfo;
+	writes[0].pBufferInfo = &ubInfo;
 	writes[0].pNext = nullptr;
 	writes[0].dstArrayElement = 0;
+
 	writes[1] = {};
 	writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writes[1].descriptorCount = 1;
@@ -326,16 +337,6 @@ void Graphics::Initialize()
 	dynamicState.pNext = nullptr;
 	dynamicState.pDynamicStates = dynamicStateEnables;
 	dynamicState.dynamicStateCount = 0;
-
-	//Pipeline vertex input state
-	VkPipelineVertexInputStateCreateInfo vertexStateInfo = {};
-	vertexStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexStateInfo.pNext = nullptr;
-	vertexStateInfo.flags = 0;
-	vertexStateInfo.vertexBindingDescriptionCount = 1;
-	vertexStateInfo.pVertexBindingDescriptions = &bindingDesc;
-	vertexStateInfo.vertexAttributeDescriptionCount = 3;
-	vertexStateInfo.pVertexAttributeDescriptions = attributeDesc;
 
 	//Pipeline vertex input assembly state
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
@@ -412,8 +413,8 @@ void Graphics::Initialize()
 	depthStencilStateInfo.depthWriteEnable = VK_TRUE;
 	depthStencilStateInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 	depthStencilStateInfo.depthBoundsTestEnable = VK_FALSE;
-	depthStencilStateInfo.minDepthBounds = 0;
-	depthStencilStateInfo.maxDepthBounds = 0;
+	depthStencilStateInfo.minDepthBounds = 0.0f;
+	depthStencilStateInfo.maxDepthBounds = 1.0f;
 	depthStencilStateInfo.stencilTestEnable = false;
 	depthStencilStateInfo.front = depthStencilStateInfo.back;
 
@@ -429,7 +430,11 @@ void Graphics::Initialize()
 	multiSampleStateInfo.alphaToOneEnable = VK_FALSE;
 	multiSampleStateInfo.minSampleShading = 0.0f;
 
-	VkPipelineShaderStageCreateInfo shaderCreateInfos[] = { m_Shaders[0]->GetPipelineCreateInfo(), m_Shaders[1]->GetPipelineCreateInfo() };
+	VkPipelineShaderStageCreateInfo shaderCreateInfos[] = 
+	{ 
+		m_Shaders[0]->GetPipelineCreateInfo(), 
+		m_Shaders[1]->GetPipelineCreateInfo() 
+	};
 
 	//Graphics pipeline
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
@@ -488,8 +493,11 @@ void Graphics::CopyBufferWithStaging(VkBuffer targetBuffer, void* pData)
 	VkMemoryRequirements targetBufferRequirements;
 	vkGetBufferMemoryRequirements(m_Device, targetBuffer, &targetBufferRequirements);
 
-	VkDeviceMemory stagingMemory;
-	VkBuffer stagingBuffer;
+	struct StagingBuffer
+	{
+		VkDeviceMemory Memory;
+		VkBuffer Buffer;
+	} stagingBuffer;
 
 	VkBufferCreateInfo bufferCreateInfo = {};
 	bufferCreateInfo.flags = 0;
@@ -500,35 +508,33 @@ void Graphics::CopyBufferWithStaging(VkBuffer targetBuffer, void* pData)
 	bufferCreateInfo.size = targetBufferRequirements.size;
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	vkCreateBuffer(m_Device, &bufferCreateInfo, nullptr, &stagingBuffer);
+	vkCreateBuffer(m_Device, &bufferCreateInfo, nullptr, &stagingBuffer.Buffer);
 
 	VkMemoryRequirements memoryRequirements = {};
-	vkGetBufferMemoryRequirements(m_Device, stagingBuffer, &memoryRequirements);
+	vkGetBufferMemoryRequirements(m_Device, stagingBuffer.Buffer, &memoryRequirements);
 
 	VkMemoryAllocateInfo allocationInfo = {};
 	allocationInfo.pNext = nullptr;
 	allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocationInfo.allocationSize = memoryRequirements.size;
 	MemoryTypeFromProperties(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &allocationInfo.memoryTypeIndex);
-	vkAllocateMemory(m_Device, &allocationInfo, nullptr, &stagingMemory);
-	vkBindBufferMemory(m_Device, stagingBuffer, stagingMemory, 0);
+	vkAllocateMemory(m_Device, &allocationInfo, nullptr, &stagingBuffer.Memory);
+	vkBindBufferMemory(m_Device, stagingBuffer.Buffer, stagingBuffer.Memory, 0);
 
 	void* pTarget = nullptr;
-	vkMapMemory(m_Device, stagingMemory, 0, memoryRequirements.size, 0, &pTarget);
+	vkMapMemory(m_Device, stagingBuffer.Memory, 0, memoryRequirements.size, 0, &pTarget);
 	memcpy(pTarget, pData, (size_t)memoryRequirements.size);
-	vkUnmapMemory(m_Device, stagingMemory);
+	vkUnmapMemory(m_Device, stagingBuffer.Memory);
 
-	VkBufferCopy copyRegion;
-	copyRegion.dstOffset = 0;
-	copyRegion.srcOffset = 0;
+	VkBufferCopy copyRegion = {};
 	copyRegion.size = memoryRequirements.size;
 
 	VkCommandBuffer copyCmd = GetCommandBuffer(true);
-	vkCmdCopyBuffer(copyCmd, stagingBuffer, targetBuffer, 1, &copyRegion);
+	vkCmdCopyBuffer(copyCmd, stagingBuffer.Buffer, targetBuffer, 1, &copyRegion);
 	FlushCommandBuffer(copyCmd);
 
-	vkDestroyBuffer(m_Device, stagingBuffer, nullptr);
-	vkFreeMemory(m_Device, stagingMemory, nullptr);
+	vkDestroyBuffer(m_Device, stagingBuffer.Buffer, nullptr);
+	vkFreeMemory(m_Device, stagingBuffer.Memory, nullptr);
 }
 
 VkCommandBuffer Graphics::GetCommandBuffer(const bool begin)

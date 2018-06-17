@@ -8,6 +8,7 @@
 *.sln.docstates
 *.sln
 *.vcxproj
+*.vcxproj.filters
 
 [Bb]uild/
 

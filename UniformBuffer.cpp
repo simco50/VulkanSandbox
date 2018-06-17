@@ -11,7 +11,7 @@ UniformBuffer::UniformBuffer(Graphics* pGraphics) :
 UniformBuffer::~UniformBuffer()
 {
 	vkFreeMemory(m_pGraphics->GetDevice(), m_Memory, nullptr);
-	vkDestroyBuffer(m_pGraphics->GetDevice(), m_DescriptorInfo.buffer, nullptr);
+	vkDestroyBuffer(m_pGraphics->GetDevice(), m_Buffer, nullptr);
 }
 
 bool UniformBuffer::SetSize(const int size)
@@ -27,14 +27,13 @@ bool UniformBuffer::SetSize(const int size)
 	createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	createInfo.size = size;
 	createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	if (vkCreateBuffer(m_pGraphics->GetDevice(), &createInfo, nullptr, &m_DescriptorInfo.buffer) != VK_SUCCESS)
+	if (vkCreateBuffer(m_pGraphics->GetDevice(), &createInfo, nullptr, &m_Buffer) != VK_SUCCESS)
 	{
 		return false;
 	}
-	m_DescriptorInfo.range = size;
 
 	VkMemoryRequirements memoryRequirements = {};
-	vkGetBufferMemoryRequirements(m_pGraphics->GetDevice(), m_DescriptorInfo.buffer, &memoryRequirements);
+	vkGetBufferMemoryRequirements(m_pGraphics->GetDevice(), m_Buffer, &memoryRequirements);
 	m_BufferSize = (int)memoryRequirements.size;
 	VkMemoryAllocateInfo allocateInfo = {};
 	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -45,7 +44,7 @@ bool UniformBuffer::SetSize(const int size)
 	{
 		return false;
 	}
-	if(vkBindBufferMemory(m_pGraphics->GetDevice(), m_DescriptorInfo.buffer, m_Memory, 0) != VK_SUCCESS)
+	if(vkBindBufferMemory(m_pGraphics->GetDevice(), m_Buffer, m_Memory, 0) != VK_SUCCESS)
 	{
 		return false;
 	}
@@ -62,9 +61,4 @@ bool UniformBuffer::SetData(const int offset, const int size, void* pData)
 	memcpy((char*)pTarget + offset, (char*)pData + offset, size);
 	vkUnmapMemory(m_pGraphics->GetDevice(), m_Memory);
 	return true;
-}
-
-const VkDescriptorBufferInfo& UniformBuffer::GetDescriptorInfo() const
-{
-	return m_DescriptorInfo;
 }
