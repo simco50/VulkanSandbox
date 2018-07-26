@@ -33,7 +33,7 @@ workspace "VulkanBase"
 		includedirs 
 		{ 
 			"../external/SDL2-2.0.7/include",
-			"../external/VulkanSDK/1.1.73.0/include",
+			"../external/VulkanSDK/1.1.77.0/include",
 			"../external/glm",
 		}
 
@@ -57,13 +57,13 @@ workspace "VulkanBase"
 		filter { "platforms:x86" }
 			libdirs
 			{
-				"../external/VulkanSDK/1.1.73.0/Lib32"
+				"../external/VulkanSDK/1.1.77.0/Lib32"
 			}
 
 		filter { "platforms:x64" }
 			libdirs
 			{
-				"../external/VulkanSDK/1.1.73.0/Lib"
+				"../external/VulkanSDK/1.1.77.0/Lib"
 			}
 
 newaction {

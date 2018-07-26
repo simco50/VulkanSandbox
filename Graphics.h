@@ -4,6 +4,8 @@ class UniformBuffer;
 class VertexBuffer;
 class IndexBuffer;
 class Texture2D;
+class Drawable;
+class Material;
 
 struct SampleVertex
 {
@@ -26,10 +28,16 @@ public:
 	VkCommandBuffer GetCommandBuffer(const bool begin);
 	void FlushCommandBuffer(VkCommandBuffer cmdBuffer);
 
+	VkPipelineCache GetPipelineCache() const { return m_PipelineCache; }
+	const VkPhysicalDeviceProperties& GetDeviceProperties() const { return m_DeviceProperties; };
+
 	void Shutdown();
 
 	const VkDevice& GetDevice() const { return m_Device; }
 	bool MemoryTypeFromProperties(uint32_t typeBits, VkFlags requirements_mask, uint32_t* typeIndex);
+
+	int GetBackbufferIndex() const { return (int)m_CurrentBuffer; }
+	int GetBackbufferCount() const { return (int)m_FrameBuffers.size(); }
 
 private:
 	void CreateDevice();
@@ -43,6 +51,7 @@ private:
 	void CreateCommandBuffers();
 	void CreateCommandPool();
 	void Gameloop();
+	bool CheckValidationLayerSupport(const std::vector<const char*>& layers);
 
 	void UpdateUniforms();
 
@@ -51,6 +60,8 @@ private:
 	void Draw();
 
 	HWND GetWindow() const;
+
+	std::unique_ptr<Material> m_pMaterial;
 
 	VkInstance m_Instance;
 	VkDevice m_Device;
@@ -69,30 +80,23 @@ private:
 	std::vector<Texture2D*> m_SwapchainImages;
 	Texture2D* m_pDepthTexture;
 
-	VkDescriptorSetLayout m_DescriptorSetLayout;
-	VkPipelineLayout m_PipelineLayout;
-	VkDescriptorPool m_DescriptorPool;
-
 	VkRenderPass m_RenderPass;
-	std::vector<VkDescriptorSet> m_DescriptorSets;
 	std::vector<VkFramebuffer> m_FrameBuffers;
-
-	VkPipeline m_GraphicsPipeline;
 
 	size_t m_CurrentBuffer = 0;
 	int m_QueueFamilyIndex = -1;
 	std::vector<VkQueueFamilyProperties> m_QueueFamilyProperties;
 	VkPhysicalDevice m_PhysicalDevice;
+	VkPhysicalDeviceProperties m_DeviceProperties;
 
-	std::vector<Shader*> m_Shaders;
 	SDL_Window* m_pWindow = nullptr;
 	unsigned int m_WindowWidth = 1240;
 	unsigned int m_WindowHeight = 720;
 
 	UniformBuffer* m_pUniformBuffer = nullptr;
-	VertexBuffer* m_pVertexBuffer = nullptr;
-	IndexBuffer* m_pIndexBuffer = nullptr;
 	Texture2D* m_pImageTexture = nullptr;
+
+	std::vector<std::unique_ptr<Drawable>> m_Drawables;
 
 	glm::mat4 m_ProjectionMatrix;
 	glm::mat4 m_ViewMatrix;

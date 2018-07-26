@@ -7,6 +7,9 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "Texture2D.h"
+#include "Cube.h"
+#include "Drawable.h"
+#include "Material.h"
 
 Graphics::Graphics()
 {
@@ -100,176 +103,20 @@ void Graphics::Initialize()
 	CreatePipelineCache();
 	CreateFrameBuffer();
 
-	//Specific initialization
+	m_pMaterial = std::make_unique<Material>(this);
+	m_pMaterial->Load("Resources/Materials/Default.xml");
 
-	//Create descriptor set layout
-	std::vector<VkDescriptorSetLayoutBinding> layoutBindings(2);
-	layoutBindings[0].binding = 0;
-	layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	layoutBindings[0].descriptorCount = 1;
-	layoutBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	layoutBindings[0].pImmutableSamplers = nullptr;
+#pragma endregion
 
-	layoutBindings[1].binding = 1;
-	layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	layoutBindings[1].pImmutableSamplers = nullptr;
-	layoutBindings[1].descriptorCount = 1;
-	layoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	std::unique_ptr<Cube> pCube = std::make_unique<Cube>(this);
+	pCube->Create(1, 1, 1);
+	pCube->SetPosition(-1.0f, 0.0f, 1.0f);
+	m_Drawables.push_back(std::move(pCube));
 
-	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
-	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorLayoutCreateInfo.pNext = nullptr;
-	descriptorLayoutCreateInfo.flags = 0;
-	descriptorLayoutCreateInfo.bindingCount = (uint32)layoutBindings.size();
-	descriptorLayoutCreateInfo.pBindings = layoutBindings.data();
-	VulkanTranslateError(vkCreateDescriptorSetLayout(m_Device, &descriptorLayoutCreateInfo, nullptr, &m_DescriptorSetLayout));
-
-	//Create pipeline layout
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.pNext = nullptr;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_DescriptorSetLayout;
-	VulkanTranslateError(vkCreatePipelineLayout(m_Device, &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout));
-
-	//Create descriptor pool
-	std::vector<VkDescriptorPoolSize> descriptorPoolSizes(2);
-	descriptorPoolSizes[0].descriptorCount = 1;
-	descriptorPoolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorPoolSizes[1].descriptorCount = 1;
-	descriptorPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = 1;
-	descriptorPoolCreateInfo.pNext = nullptr;
-	descriptorPoolCreateInfo.poolSizeCount = (uint32)descriptorPoolSizes.size();
-	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
-	VulkanTranslateError(vkCreateDescriptorPool(m_Device, &descriptorPoolCreateInfo, nullptr, &m_DescriptorPool));
-
-	//Allocate descriptor set
-	VkDescriptorSetAllocateInfo descriptorAllocateInfo[1];
-	descriptorAllocateInfo[0].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descriptorAllocateInfo[0].descriptorPool = m_DescriptorPool;
-	descriptorAllocateInfo[0].descriptorSetCount = 1;
-	descriptorAllocateInfo[0].pNext = nullptr;
-	descriptorAllocateInfo[0].pSetLayouts = &m_DescriptorSetLayout;
-	m_DescriptorSets.resize(1);
-	VulkanTranslateError(vkAllocateDescriptorSets(m_Device, descriptorAllocateInfo, m_DescriptorSets.data()));
-
-	Shader* pShader = new Shader(m_Device);
-	if (pShader->Load("Resources/Shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT) == false)
-	{
-		return;
-	}
-	m_Shaders.push_back(pShader);
-	pShader = new Shader(m_Device);
-	pShader->Load("Resources/Shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-	m_Shaders.push_back(pShader);
-
-	//Vertex buffer
-	std::vector<SampleVertex> vertices = 
-	{
-		//front 0
-		{ glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(0, 0) },
-		{ glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(1, 0) },
-		{ glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(1, 1) },
-		{ glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(1, 0) },
-
-		//top 4
-		{ glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec2(0, 0) },
-		{ glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec2(1, 0) },
-		{ glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f) , glm::vec2(1, 1) },
-		{ glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec2(1, 0) },
-
-		//left 8
-		{ glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec2(0, 0) },
-		{ glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec2(1, 0) },
-		{ glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec2(1, 1) },
-		{ glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec2(1, 0) },
-
-		//right 12
-		{ glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec2(0, 0) },
-		{ glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec2(1, 0) },
-		{ glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec2(1, 1) },
-		{ glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec2(1, 0) },
-
-		//bottom 16
-		{ glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec2(0, 0) },
-		{ glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec2(1, 0) },
-		{ glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec2(1, 1) },
-		{ glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec2(1, 0) },
-
-		//back 20
-		{ glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(0, 0) },
-		{ glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1, 0) },
-		{ glm::vec3(1.0f, -1.0f, 1.0f) , glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1, 1) },
-		{ glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1, 0) },
-	};
-
-	std::vector<unsigned int> indices = {
-		0, 1, 2,
-		0, 2, 3,
-
-		4, 5, 6,
-		4, 6, 7,
-
-		9, 8, 10,
-		10, 8, 11,
-
-		12, 13, 14,
-		14, 15, 12,
-
-		16, 18, 17,
-		19, 18, 16,
-
-		20, 23, 22,
-		21, 20, 22
-	};
-
-	m_pVertexBuffer = new VertexBuffer(this);
-	m_pVertexBuffer->SetSize((int)vertices.size() * sizeof(SampleVertex), false);
-	m_pVertexBuffer->SetData((int)vertices.size() * sizeof(SampleVertex), 0, vertices.data());
-
-	//Vertex layout
-	VkVertexInputBindingDescription bindingDesc;
-	bindingDesc.binding = 0;
-	bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	bindingDesc.stride = sizeof(SampleVertex);
-	VkVertexInputAttributeDescription attributeDesc[3];
-	int offset = 0;
-	attributeDesc[0].binding = 0;
-	attributeDesc[0].location = 0;
-	attributeDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDesc[0].offset = offset;
-	offset += sizeof(glm::vec3);
-	attributeDesc[1].binding = 0;
-	attributeDesc[1].location = 1;
-	attributeDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attributeDesc[1].offset = offset;
-	offset += sizeof(glm::vec3);
-	attributeDesc[2].binding = 0;
-	attributeDesc[2].location = 2;
-	attributeDesc[2].format = VK_FORMAT_R32G32_SFLOAT;
-	attributeDesc[2].offset = offset;
-
-	//Pipeline vertex input state
-	VkPipelineVertexInputStateCreateInfo vertexStateInfo = {};
-	vertexStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexStateInfo.pNext = nullptr;
-	vertexStateInfo.flags = 0;
-	vertexStateInfo.vertexBindingDescriptionCount = 1;
-	vertexStateInfo.pVertexBindingDescriptions = &bindingDesc;
-	vertexStateInfo.vertexAttributeDescriptionCount = 3;
-	vertexStateInfo.pVertexAttributeDescriptions = attributeDesc;
-
-	m_pIndexBuffer = new IndexBuffer(this);
-	m_pIndexBuffer->SetSize((int)indices.size(), false, false);
-	m_pIndexBuffer->SetData(indices.data());
+	pCube = std::make_unique<Cube>(this);
+	pCube->Create(1, 0.5f, 1);
+	pCube->SetPosition(2.0f, 0.0f, 1.0f);
+	m_Drawables.push_back(std::move(pCube));
 
 	m_pImageTexture = new Texture2D(this);
 	m_pImageTexture->Load("Resources/Textures/spot.png");
@@ -304,16 +151,16 @@ void Graphics::Initialize()
 
 	VkDescriptorBufferInfo ubInfo = {};
 	ubInfo.buffer = m_pUniformBuffer->GetBuffer();
-	ubInfo.range = m_pUniformBuffer->GetSize();
+	ubInfo.range = VK_WHOLE_SIZE;
 	ubInfo.offset = 0;
 
 	std::vector<VkWriteDescriptorSet> writes(2);
 	writes[0] = {};
 	writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writes[0].descriptorCount = 1;
-	writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	writes[0].dstBinding = 0;
-	writes[0].dstSet = m_DescriptorSets[0];
+	writes[0].dstSet = m_pMaterial->GetDescriptorSet(0);
 	writes[0].pBufferInfo = &ubInfo;
 	writes[0].pNext = nullptr;
 	writes[0].dstArrayElement = 0;
@@ -323,142 +170,11 @@ void Graphics::Initialize()
 	writes[1].descriptorCount = 1;
 	writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writes[1].dstBinding = 1;
-	writes[1].dstSet = m_DescriptorSets[0];
+	writes[1].dstSet = m_pMaterial->GetDescriptorSet(0);
 	writes[1].pImageInfo = &texInfo;
 	writes[1].pNext = nullptr;
 	writes[1].dstArrayElement = 0;
 	vkUpdateDescriptorSets(m_Device, (uint32)writes.size(), writes.data(), 0, nullptr);
-
-	//Dynamic state
-	VkDynamicState dynamicStateEnables[VK_DYNAMIC_STATE_RANGE_SIZE];
-	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	memset(dynamicStateEnables, 0, sizeof(dynamicStateEnables));
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.pNext = nullptr;
-	dynamicState.pDynamicStates = dynamicStateEnables;
-	dynamicState.dynamicStateCount = 0;
-
-	//Pipeline vertex input assembly state
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
-	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssemblyInfo.pNext = nullptr;
-	inputAssemblyInfo.flags = 0;
-	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-	//Rasterization state
-	VkPipelineRasterizationStateCreateInfo rasterizerStateInfo = {};
-	rasterizerStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizerStateInfo.pNext = NULL;
-	rasterizerStateInfo.flags = 0;
-	rasterizerStateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizerStateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizerStateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-	rasterizerStateInfo.depthClampEnable = VK_FALSE;
-	rasterizerStateInfo.rasterizerDiscardEnable = VK_FALSE;
-	rasterizerStateInfo.depthBiasEnable = VK_FALSE;
-	rasterizerStateInfo.depthBiasConstantFactor = 0;
-	rasterizerStateInfo.depthBiasClamp = 0;
-	rasterizerStateInfo.depthBiasSlopeFactor = 0;
-	rasterizerStateInfo.lineWidth = 1.0f;
-
-	//Blend state
-	VkPipelineColorBlendStateCreateInfo blendStateInfo = {};
-	blendStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	blendStateInfo.pNext = nullptr;
-	blendStateInfo.flags = 0;
-	VkPipelineColorBlendAttachmentState attState[1];
-	attState[0].colorWriteMask = 0xf;
-	attState[0].blendEnable = VK_FALSE;
-	attState[0].alphaBlendOp = VK_BLEND_OP_ADD;
-	attState[0].colorBlendOp = VK_BLEND_OP_ADD;
-	attState[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	attState[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	attState[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	attState[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	blendStateInfo.attachmentCount = 1;
-	blendStateInfo.pAttachments = attState;
-	blendStateInfo.logicOpEnable = VK_FALSE;
-	blendStateInfo.logicOp = VK_LOGIC_OP_NO_OP;
-	blendStateInfo.blendConstants[0] = 1.0f;
-	blendStateInfo.blendConstants[1] = 1.0f;
-	blendStateInfo.blendConstants[2] = 1.0f;
-	blendStateInfo.blendConstants[3] = 1.0f;
-
-	//Viewport state
-	VkPipelineViewportStateCreateInfo viewportStateInfo = {};
-	viewportStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportStateInfo.pNext = nullptr;
-	viewportStateInfo.flags = 0;
-	viewportStateInfo.viewportCount = 1;
-	dynamicStateEnables[dynamicState.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
-	viewportStateInfo.scissorCount = 1;
-	dynamicStateEnables[dynamicState.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
-	viewportStateInfo.pScissors = nullptr;
-	viewportStateInfo.pViewports = nullptr;
-
-	//Depth stencil state
-	VkPipelineDepthStencilStateCreateInfo depthStencilStateInfo = {};
-	depthStencilStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilStateInfo.pNext = nullptr;
-	depthStencilStateInfo.flags = 0;
-	depthStencilStateInfo.back.failOp = VK_STENCIL_OP_KEEP;
-	depthStencilStateInfo.back.passOp = VK_STENCIL_OP_KEEP;
-	depthStencilStateInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
-	depthStencilStateInfo.back.compareMask = 0;
-	depthStencilStateInfo.back.reference = 0;
-	depthStencilStateInfo.back.depthFailOp = VK_STENCIL_OP_KEEP;
-	depthStencilStateInfo.back.writeMask = 0;
-	depthStencilStateInfo.depthTestEnable = VK_TRUE;
-	depthStencilStateInfo.depthWriteEnable = VK_TRUE;
-	depthStencilStateInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-	depthStencilStateInfo.depthBoundsTestEnable = VK_FALSE;
-	depthStencilStateInfo.minDepthBounds = 0.0f;
-	depthStencilStateInfo.maxDepthBounds = 1.0f;
-	depthStencilStateInfo.stencilTestEnable = false;
-	depthStencilStateInfo.front = depthStencilStateInfo.back;
-
-	//MSAA state
-	VkPipelineMultisampleStateCreateInfo multiSampleStateInfo = {};
-	multiSampleStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multiSampleStateInfo.pNext = nullptr;
-	multiSampleStateInfo.flags = 0;
-	multiSampleStateInfo.pSampleMask = nullptr;
-	multiSampleStateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multiSampleStateInfo.sampleShadingEnable = VK_FALSE;
-	multiSampleStateInfo.alphaToCoverageEnable = VK_FALSE;
-	multiSampleStateInfo.alphaToOneEnable = VK_FALSE;
-	multiSampleStateInfo.minSampleShading = 0.0f;
-
-	VkPipelineShaderStageCreateInfo shaderCreateInfos[] = 
-	{ 
-		m_Shaders[0]->GetPipelineCreateInfo(), 
-		m_Shaders[1]->GetPipelineCreateInfo() 
-	};
-
-	//Graphics pipeline
-	VkGraphicsPipelineCreateInfo pipelineInfo = {};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = nullptr;
-	pipelineInfo.layout = m_PipelineLayout;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-	pipelineInfo.basePipelineIndex = 0;
-	pipelineInfo.flags = 0;
-	pipelineInfo.pVertexInputState = &vertexStateInfo;
-	pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
-	pipelineInfo.pRasterizationState = &rasterizerStateInfo;
-	pipelineInfo.pColorBlendState = &blendStateInfo;
-	pipelineInfo.pTessellationState = nullptr;
-	pipelineInfo.pMultisampleState = &multiSampleStateInfo;
-	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.pViewportState = &viewportStateInfo;
-	pipelineInfo.pDepthStencilState = &depthStencilStateInfo;
-	pipelineInfo.pStages = shaderCreateInfos;
-	pipelineInfo.stageCount = 2;
-	pipelineInfo.renderPass = m_RenderPass;
-	pipelineInfo.subpass = 0;
-
-	VulkanTranslateError(vkCreateGraphicsPipelines(m_Device, m_PipelineCache, 1, &pipelineInfo, nullptr, &m_GraphicsPipeline));
 
 	BuildCommandBuffers();
 
@@ -583,7 +299,7 @@ void Graphics::FlushCommandBuffer(VkCommandBuffer cmdBuffer)
 	VkFence fence;
 	vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &fence);
 	vkQueueSubmit(m_DeviceQueue, 1, &submitInfo, fence);
-	vkWaitForFences(m_Device, 1, &fence, VK_TRUE, 1000);
+	vkWaitForFences(m_Device, 1, &fence, VK_TRUE, 1000000000);
 
 	vkDestroyFence(m_Device, fence, nullptr);
 	vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &cmdBuffer);
@@ -834,8 +550,7 @@ void Graphics::CreateDevice()
 	//Just take the first device for now
 	m_PhysicalDevice = devices[0];
 
-	VkPhysicalDeviceProperties properties;
-	vkGetPhysicalDeviceProperties(m_PhysicalDevice, &properties);
+	vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_DeviceProperties);
 	VkPhysicalDeviceFeatures deviceFeatures;
 	vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &deviceFeatures);
 
@@ -912,6 +627,12 @@ bool Graphics::CreateVulkanInstance()
 	// On desktop the LunarG loaders exposes a meta layer that contains all layers
 	std::vector<const char*> layerNames;
 	layerNames.push_back("VK_LAYER_LUNARG_standard_validation");
+	layerNames.push_back("VK_LAYER_LUNARG_core_validation");
+
+	if (CheckValidationLayerSupport(layerNames) == false)
+	{
+		return false;
+	}
 
 	VkInstanceCreateInfo createInfo;
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -951,8 +672,6 @@ void Graphics::Gameloop()
 			}
 		}
 		++m_FrameCount;
-		UpdateUniforms();
-
 		Draw();
 	}
 
@@ -960,6 +679,28 @@ void Graphics::Gameloop()
 	{
 		vkDeviceWaitIdle(m_Device);
 	}
+}
+
+bool Graphics::CheckValidationLayerSupport(const std::vector<const char*>& layers)
+{
+	uint32_t layerCount;
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+	std::vector<VkLayerProperties> availableLayers(layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+	bool success = true;
+	for (const char* layer : layers)
+	{
+		auto it = std::find_if(availableLayers.begin(), availableLayers.end(), [layer](const VkLayerProperties& a) { return strcmp(a.layerName, layer) == 0; });
+		if (it == availableLayers.end())
+		{
+			std::cout << "Layer '" << layer << "' is not available" << std::endl;
+			success = false;
+		}
+	}
+
+	return success;
 }
 
 void Graphics::UpdateUniforms()
@@ -976,13 +717,19 @@ void Graphics::UpdateUniforms()
 		glm::vec3(0, 0, 0),    // and looks at the origin
 		glm::vec3(0, -1, 0)    // Head is up (set to 0,-1,0 to look upside-down)
 	);
-	m_ModelMatrix = glm::rotate(m_ModelMatrix, glm::radians((float)1.0f), glm::vec3(0, 1, 0));
-	m_MvpMatrix = m_ProjectionMatrix * m_ViewMatrix * m_ModelMatrix;
 
-	ModelBufferData.ModelMatrix = m_ModelMatrix;
-	ModelBufferData.MvpMatrix = m_MvpMatrix;
+	for (size_t i = 0; i < m_Drawables.size(); ++i)
+	{
+		m_ModelMatrix = m_Drawables[i]->GetWorldMatrix();
+		m_Drawables[i]->SetRotation(0.0f, (float)pow(-1, i), 0.0f, (float)m_FrameCount / 50.0f);
+		m_Drawables[i]->SetPosition((float)pow(-1, i) * 2, (float)pow(-1, i) * sin((float)m_FrameCount / 50.0f), 0);
+		m_MvpMatrix = m_ProjectionMatrix * m_ViewMatrix * m_ModelMatrix;
 
-	m_pUniformBuffer->SetData(0, sizeof(ModelBuffer), &ModelBufferData);
+		ModelBufferData.ModelMatrix = m_ModelMatrix;
+		ModelBufferData.MvpMatrix = m_MvpMatrix;
+
+		m_pUniformBuffer->SetData(0, sizeof(ModelBuffer), &ModelBufferData);
+	}
 }
 
 void Graphics::BuildCommandBuffers()
@@ -1036,15 +783,18 @@ void Graphics::BuildCommandBuffers()
 		vkCmdSetViewport(m_CommandBuffers[i], 0, 1, &viewport);
 		vkCmdSetScissor(m_CommandBuffers[i], 0, 1, &scissor);
 
-		vkCmdBindDescriptorSets(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout, 0, 1, m_DescriptorSets.data(), 0, nullptr);
-		
-		vkCmdBindPipeline(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipeline);
+		vkCmdBindPipeline(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pMaterial->GetPipeline());
 
-		const VkDeviceSize offsets[1] = { 0 };
-		vkCmdBindVertexBuffers(m_CommandBuffers[i], 0, 1, &m_pVertexBuffer->GetBuffer(), offsets);
-		vkCmdBindIndexBuffer(m_CommandBuffers[i], m_pIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		for (size_t j = 0; j < m_Drawables.size(); ++j)
+		{
+			const VkDeviceSize offsets[1] = { 0 };
+			vkCmdBindVertexBuffers(m_CommandBuffers[i], 0, 1, &m_Drawables[j]->GetVertexBuffer()->GetBuffer(), offsets);
+			vkCmdBindIndexBuffer(m_CommandBuffers[i], m_Drawables[j]->GetIndexBuffer()->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+			unsigned int dynamicOffsets[] = { (unsigned int)m_pUniformBuffer->GetOffset((int)j) };
+			vkCmdBindDescriptorSets(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pMaterial->GetPipelineLayout(), 0, (unsigned int)m_pMaterial->GetDescriptorSets().size(), m_pMaterial->GetDescriptorSets().data(), 1, dynamicOffsets);
+			vkCmdDrawIndexed(m_CommandBuffers[i], m_Drawables[j]->GetIndexBuffer()->GetCount(), 1, 0, 0, 0);
+		}
 
-		vkCmdDrawIndexed(m_CommandBuffers[i], m_pIndexBuffer->GetCount(), 1, 0, 0, 0);
 		vkCmdEndRenderPass(m_CommandBuffers[i]);
 		vkEndCommandBuffer(m_CommandBuffers[i]);
 	}
@@ -1057,6 +807,9 @@ void Graphics::Draw()
 
 	vkWaitForFences(m_Device, 1, &m_WaitFences[m_CurrentBuffer], VK_TRUE, UINT64_MAX);
 	vkResetFences(m_Device, 1, &m_WaitFences[m_CurrentBuffer]);
+
+	UpdateUniforms();
+	m_pUniformBuffer->Flush();
 
 	const VkCommandBuffer commandBuffers[] = { m_CommandBuffers[m_CurrentBuffer] };
 	VkPipelineStageFlags pipelineStateFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -1086,12 +839,10 @@ void Graphics::Draw()
 
 void Graphics::Shutdown()
 {
-	vkDestroyPipeline(m_Device, m_GraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(m_Device, m_DescriptorSetLayout, nullptr);
+	m_pMaterial.reset();
+	m_Drawables.clear();
+
 	delete m_pUniformBuffer;
-	delete m_pVertexBuffer;
-	delete m_pIndexBuffer;
 	delete m_pImageTexture;
 
 	vkFreeCommandBuffers(m_Device, m_CommandPool, (uint32)m_CommandBuffers.size(), m_CommandBuffers.data());
@@ -1110,13 +861,7 @@ void Graphics::Shutdown()
 	delete m_pDepthTexture;
 	vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
 
-	for (Shader* pShader : m_Shaders)
-	{
-		delete pShader;
-	}
-
 	vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
-	vkDestroyDescriptorPool(m_Device, m_DescriptorPool, nullptr);
 	vkDestroyPipelineCache(m_Device, m_PipelineCache, nullptr);
 
 	for (size_t i = 0; i < m_FrameBuffers.size() ; i++)
