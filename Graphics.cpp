@@ -10,6 +10,7 @@
 #include "Cube.h"
 #include "Drawable.h"
 #include "Material.h"
+#include "DescriptorPool.h"
 
 Graphics::Graphics()
 {
@@ -101,6 +102,7 @@ void Graphics::Initialize()
 	CreateDepthStencil();
 	CreateRenderPass();
 	CreatePipelineCache();
+	CreateDescriptorPool();
 	CreateFrameBuffer();
 
 	m_pMaterial = std::make_unique<Material>(this);
@@ -245,47 +247,34 @@ void Graphics::CopyBufferWithStaging(VkBuffer targetBuffer, void* pData)
 	VkBufferCopy copyRegion = {};
 	copyRegion.size = memoryRequirements.size;
 
-	VkCommandBuffer copyCmd = GetCommandBuffer(true);
-	vkCmdCopyBuffer(copyCmd, stagingBuffer.Buffer, targetBuffer, 1, &copyRegion);
+	std::unique_ptr<CommandBuffer> copyCmd = GetTempCommandBuffer(true);
+	copyCmd->CopyBuffer(stagingBuffer.Buffer, targetBuffer, (int)memoryRequirements.size);
 	FlushCommandBuffer(copyCmd);
 
 	vkDestroyBuffer(m_Device, stagingBuffer.Buffer, nullptr);
 	vkFreeMemory(m_Device, stagingBuffer.Memory, nullptr);
 }
 
-VkCommandBuffer Graphics::GetCommandBuffer(const bool begin)
+std::unique_ptr<CommandBuffer> Graphics::GetTempCommandBuffer(const bool begin)
 {
-	VkCommandBuffer cmdBuffer;
-	VkCommandBufferAllocateInfo cmdBufAllocateInfo = {};
-	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufAllocateInfo.commandPool = m_CommandPool;
-	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdBufAllocateInfo.commandBufferCount = 1;
-
-	vkAllocateCommandBuffers(m_Device, &cmdBufAllocateInfo, &cmdBuffer);
-
-	// If requested, also start the new command buffer
+	std::unique_ptr<CommandBuffer> pBuffer = std::make_unique<CommandBuffer>(this);
 	if (begin)
 	{
-		VkCommandBufferBeginInfo cmdBufInfo = {};
-		cmdBufInfo.flags = 0;
-		cmdBufInfo.pInheritanceInfo = nullptr;
-		cmdBufInfo.pNext = nullptr;
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo);
+		pBuffer->Begin();
 	}
-
-	return cmdBuffer;
+	return pBuffer;
 }
 
-void Graphics::FlushCommandBuffer(VkCommandBuffer cmdBuffer)
+void Graphics::FlushCommandBuffer(std::unique_ptr<CommandBuffer>& cmdBuffer)
 {
-	vkEndCommandBuffer(cmdBuffer);
+	VkCommandBuffer buffer = cmdBuffer->GetBuffer();
+
+	vkEndCommandBuffer(buffer);
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &cmdBuffer;
+	submitInfo.pCommandBuffers = &buffer;
 	submitInfo.pSignalSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
 	submitInfo.pWaitSemaphores = nullptr;
@@ -302,7 +291,8 @@ void Graphics::FlushCommandBuffer(VkCommandBuffer cmdBuffer)
 	vkWaitForFences(m_Device, 1, &fence, VK_TRUE, 1000000000);
 
 	vkDestroyFence(m_Device, fence, nullptr);
-	vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &cmdBuffer);
+
+	cmdBuffer.reset();
 }
 
 void Graphics::CreatePipelineCache()
@@ -314,6 +304,11 @@ void Graphics::CreatePipelineCache()
 	cacheCreateInfo.initialDataSize = 0;
 	cacheCreateInfo.pInitialData = nullptr;
 	vkCreatePipelineCache(m_Device, &cacheCreateInfo, nullptr, &m_PipelineCache);
+}
+
+void Graphics::CreateDescriptorPool()
+{
+	m_pDescriptorPool = std::make_unique<DescriptorPool>(this);
 }
 
 void Graphics::CreateRenderPass()
@@ -405,13 +400,11 @@ void Graphics::CreateSynchronizationPrimitives()
 void Graphics::CreateCommandBuffers()
 {
 	m_CommandBuffers.resize(m_SwapchainImages.size());
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandBufferCount = (uint32)m_CommandBuffers.size();
-	commandBufferAllocateInfo.commandPool = m_CommandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.pNext = nullptr;
-	VulkanTranslateError(vkAllocateCommandBuffers(m_Device, &commandBufferAllocateInfo, m_CommandBuffers.data()));
+
+	for (auto& pCommandBuffer : m_CommandBuffers)
+	{
+		pCommandBuffer = std::make_unique<CommandBuffer>(this);
+	}
 }
 
 void Graphics::CreateCommandPool()
@@ -628,7 +621,7 @@ bool Graphics::CreateVulkanInstance()
 	std::vector<const char*> layerNames;
 	layerNames.push_back("VK_LAYER_LUNARG_standard_validation");
 	layerNames.push_back("VK_LAYER_LUNARG_core_validation");
-
+	layerNames.push_back("VK_LAYER_RENDERDOC_Capture");
 	if (CheckValidationLayerSupport(layerNames) == false)
 	{
 		return false;
@@ -734,32 +727,6 @@ void Graphics::UpdateUniforms()
 
 void Graphics::BuildCommandBuffers()
 {
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.flags = 0;
-	beginInfo.pInheritanceInfo = nullptr;
-	beginInfo.pNext = nullptr;
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-	/* We cannot bind the vertex buffer until we begin a renderpass */
-	VkClearValue clearValues[2];
-	clearValues[0].color.float32[0] = 0.2f;
-	clearValues[0].color.float32[1] = 0.2f;
-	clearValues[0].color.float32[2] = 0.2f;
-	clearValues[0].color.float32[3] = 0.2f;
-	clearValues[1].depthStencil.depth = 1.0f;
-	clearValues[1].depthStencil.stencil = 0;
-
-	VkRenderPassBeginInfo rpBegin = {};
-	rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	rpBegin.pNext = NULL;
-	rpBegin.renderPass = m_RenderPass;
-	rpBegin.renderArea.offset.x = 0;
-	rpBegin.renderArea.offset.y = 0;
-	rpBegin.renderArea.extent.width = m_WindowWidth;
-	rpBegin.renderArea.extent.height = m_WindowHeight;
-	rpBegin.clearValueCount = 2;
-	rpBegin.pClearValues = clearValues;
-
 	VkViewport viewport;
 	viewport.height = (float)m_WindowHeight;
 	viewport.width = (float)m_WindowWidth;
@@ -768,35 +735,25 @@ void Graphics::BuildCommandBuffers()
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
-	VkRect2D scissor;
-	scissor.extent.height = m_WindowHeight;
-	scissor.extent.width = m_WindowWidth;
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-
 	for(size_t i = 0; i < m_CommandBuffers.size(); ++i)
 	{
-		rpBegin.framebuffer = m_FrameBuffers[i];
-		vkBeginCommandBuffer(m_CommandBuffers[i], &beginInfo);
-		vkCmdBeginRenderPass(m_CommandBuffers[i], &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
-
-		vkCmdSetViewport(m_CommandBuffers[i], 0, 1, &viewport);
-		vkCmdSetScissor(m_CommandBuffers[i], 0, 1, &scissor);
-
-		vkCmdBindPipeline(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pMaterial->GetPipeline());
+		m_CommandBuffers[i]->Begin();
+		m_CommandBuffers[i]->BeginRenderPass(m_FrameBuffers[i], m_RenderPass, m_WindowWidth, m_WindowHeight);
+		m_CommandBuffers[i]->SetViewport(viewport);
+		m_CommandBuffers[i]->SetGraphicsPipeline(m_pMaterial->GetPipeline());
 
 		for (size_t j = 0; j < m_Drawables.size(); ++j)
 		{
-			const VkDeviceSize offsets[1] = { 0 };
-			vkCmdBindVertexBuffers(m_CommandBuffers[i], 0, 1, &m_Drawables[j]->GetVertexBuffer()->GetBuffer(), offsets);
-			vkCmdBindIndexBuffer(m_CommandBuffers[i], m_Drawables[j]->GetIndexBuffer()->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
-			unsigned int dynamicOffsets[] = { (unsigned int)m_pUniformBuffer->GetOffset((int)j) };
-			vkCmdBindDescriptorSets(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pMaterial->GetPipelineLayout(), 0, (unsigned int)m_pMaterial->GetDescriptorSets().size(), m_pMaterial->GetDescriptorSets().data(), 1, dynamicOffsets);
-			vkCmdDrawIndexed(m_CommandBuffers[i], m_Drawables[j]->GetIndexBuffer()->GetCount(), 1, 0, 0, 0);
-		}
+			std::vector<unsigned int> d = { 0 };
+			m_CommandBuffers[i]->SetVertexBuffer(0, m_Drawables[j]->GetVertexBuffer());
+			m_CommandBuffers[i]->SetIndexBuffer(0, m_Drawables[j]->GetIndexBuffer());
 
-		vkCmdEndRenderPass(m_CommandBuffers[i]);
-		vkEndCommandBuffer(m_CommandBuffers[i]);
+			std::vector<unsigned int> dynamicOffsets = { (unsigned int)m_pUniformBuffer->GetOffset((int)j) };
+			m_CommandBuffers[i]->SetDescriptorSets(m_pMaterial->GetPipelineLayout(), m_pMaterial->GetDescriptorSets(), dynamicOffsets);
+			m_CommandBuffers[i]->DrawIndexed(m_Drawables[j]->GetIndexBuffer()->GetCount(), 0);
+		}
+		m_CommandBuffers[i]->EndRenderPass();
+		m_CommandBuffers[i]->End();
 	}
 }
 
@@ -811,7 +768,7 @@ void Graphics::Draw()
 	UpdateUniforms();
 	m_pUniformBuffer->Flush();
 
-	const VkCommandBuffer commandBuffers[] = { m_CommandBuffers[m_CurrentBuffer] };
+	const VkCommandBuffer commandBuffers[] = { m_CommandBuffers[m_CurrentBuffer]->GetBuffer() };
 	VkPipelineStageFlags pipelineStateFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo submitInfo[1] = {};
 	submitInfo[0].pNext = nullptr;
@@ -845,7 +802,7 @@ void Graphics::Shutdown()
 	delete m_pUniformBuffer;
 	delete m_pImageTexture;
 
-	vkFreeCommandBuffers(m_Device, m_CommandPool, (uint32)m_CommandBuffers.size(), m_CommandBuffers.data());
+	m_CommandBuffers.clear();
 
 	vkDestroySemaphore(m_Device, m_PresentCompleteSemaphore, nullptr);
 	vkDestroySemaphore(m_Device, m_RenderCompleteSemaphore, nullptr);
@@ -863,6 +820,7 @@ void Graphics::Shutdown()
 
 	vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
 	vkDestroyPipelineCache(m_Device, m_PipelineCache, nullptr);
+	m_pDescriptorPool.reset();
 
 	for (size_t i = 0; i < m_FrameBuffers.size() ; i++)
 	{

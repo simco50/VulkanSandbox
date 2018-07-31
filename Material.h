@@ -24,7 +24,6 @@ protected:
 	VkPipelineLayout m_PipelineLayout;
 	VkDescriptorSetLayout m_DescriptorSetLayout;
 	VkRenderPass m_RenderPass;
-	VkDescriptorPool m_DescriptorPool;
 	std::vector<VkDescriptorSet> m_DescriptorSets;
 	std::vector<std::unique_ptr<Shader>> m_Shaders;
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "CommandBuffer.h"
 class Shader;
 class UniformBuffer;
 class VertexBuffer;
@@ -6,6 +7,7 @@ class IndexBuffer;
 class Texture2D;
 class Drawable;
 class Material;
+class DescriptorPool;
 
 struct SampleVertex
 {
@@ -25,11 +27,15 @@ public:
 	void CreateFrameBuffer();
 	void CopyBufferWithStaging(VkBuffer targetBuffer, void* pData);
 
-	VkCommandBuffer GetCommandBuffer(const bool begin);
-	void FlushCommandBuffer(VkCommandBuffer cmdBuffer);
+	std::unique_ptr<CommandBuffer> GetTempCommandBuffer(const bool begin);
+
+	void FlushCommandBuffer(std::unique_ptr<CommandBuffer>& cmdBuffer);
 
 	VkPipelineCache GetPipelineCache() const { return m_PipelineCache; }
 	const VkPhysicalDeviceProperties& GetDeviceProperties() const { return m_DeviceProperties; };
+
+	VkCommandPool GetCommandPool() const { return m_CommandPool; }
+	DescriptorPool* GetDescriptorPool() const { return m_pDescriptorPool.get(); }
 
 	void Shutdown();
 
@@ -45,6 +51,7 @@ private:
 	bool CreateVulkanInstance();
 	void CreateSwapchain();
 	void CreatePipelineCache();
+	void CreateDescriptorPool();
 	void CreateRenderPass();
 	void CreateDepthStencil();
 	void CreateSynchronizationPrimitives();
@@ -61,6 +68,8 @@ private:
 
 	HWND GetWindow() const;
 
+	std::unique_ptr<DescriptorPool> m_pDescriptorPool;
+
 	std::unique_ptr<Material> m_pMaterial;
 
 	VkInstance m_Instance;
@@ -68,7 +77,7 @@ private:
 	VkQueue m_DeviceQueue;
 	VkPhysicalDeviceMemoryProperties m_MemoryProperties;
 	VkCommandPool m_CommandPool;
-	std::vector<VkCommandBuffer> m_CommandBuffers;
+	std::vector<std::unique_ptr<CommandBuffer>> m_CommandBuffers;
 	VkSurfaceKHR m_Surface;
 	VkSwapchainKHR m_SwapChain;
 	VkPipelineCache m_PipelineCache;

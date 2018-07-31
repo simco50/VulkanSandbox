@@ -157,7 +157,7 @@ bool Texture2D::SetData(const unsigned int mipLevel, int x, int y, int width, in
 	copyRegion.imageExtent.height = height;
 	copyRegion.imageExtent.depth = 1;
 
-	VkCommandBuffer copyCmd = m_pGraphics->GetCommandBuffer(true);
+	std::unique_ptr<CommandBuffer> copyCmd = m_pGraphics->GetTempCommandBuffer(true);
 	
 	VkImageSubresourceRange subresourceRange = {};
 	subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -165,9 +165,9 @@ bool Texture2D::SetData(const unsigned int mipLevel, int x, int y, int width, in
 	subresourceRange.levelCount = 1;
 	subresourceRange.layerCount = 1;
 
-	SetLayout(copyCmd, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
-	vkCmdCopyBufferToImage(copyCmd, stagingBuffer, (VkImage)m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-	SetLayout(copyCmd, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
+	SetLayout(copyCmd->GetBuffer(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
+	copyCmd->CopyImageToBuffer(stagingBuffer, this);
+	SetLayout(copyCmd->GetBuffer(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
 
 	m_pGraphics->FlushCommandBuffer(copyCmd);
 

@@ -8,9 +8,10 @@ public:
 	bool Load(const std::string& filePath, VkShaderStageFlagBits shaderStage);
 
 	VkShaderModule GetShaderObject();
-	VkPipelineShaderStageCreateInfo& GetPipelineCreateInfo();
+	VkShaderStageFlagBits GetStage() const { return m_ShaderStage; }
 
 private:
 	VkDevice m_Device;
-	VkPipelineShaderStageCreateInfo m_PipelineInfo;
+	VkShaderStageFlagBits m_ShaderStage;
+	VkShaderModule m_Module;
 };

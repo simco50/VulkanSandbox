@@ -18,6 +18,9 @@ public:
 	GpuObject GetView() { return m_View; }
 	GpuObject GetSampler() { return m_Sampler; }
 
+	unsigned int GetWidth() const { return (unsigned int)m_Width; }
+	unsigned int GetHeight() const { return (unsigned int)m_Width; }
+
 private:
 	Graphics * m_pGraphics;
 	GpuObject m_Image;
