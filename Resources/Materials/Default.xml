@@ -4,14 +4,13 @@
 		<Shader type="ps" path="Resources/Shaders/frag.spv"/>
 	</Shaders>
 	<Pipeline>
-		<Descriptors>
-			<UniformBuffer name="Test" binding="0" shaderstage="vs" dynamic="true" size="45"/>
-			<Texture2D name="image" binding="1" shaderstage="ps"/>
-		</Descriptors>
 		<VertexLayout>
 			<Element binding="0" type="float3"/>
 			<Element binding="0" type="float3"/>
 			<Element binding="0" type="float2"/>
 		</VertexLayout>
 	</Pipeline>
+	<Resources>
+		<Texture2D binding="Diffuse" source="Resources/Textures/Spot.png"/>
+	</Resources>
 </Material>

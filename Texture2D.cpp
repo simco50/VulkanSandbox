@@ -4,6 +4,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include "VulkanAllocator.h"
 
 
 Texture2D::Texture2D(Graphics* pGraphics) :
@@ -16,7 +17,6 @@ Texture2D::~Texture2D()
 {
 	if (m_ImageOwned)
 	{
-		vkFreeMemory(m_pGraphics->GetDevice(), (VkDeviceMemory)m_Memory, nullptr);
 		vkDestroyImage(m_pGraphics->GetDevice(), (VkImage)m_Image, nullptr);
 	}
 	vkDestroyImageView(m_pGraphics->GetDevice(), (VkImageView)m_View, nullptr);
@@ -70,18 +70,9 @@ void Texture2D::SetSize(const int width, const int height, const unsigned int fo
 		vkCreateImage(m_pGraphics->GetDevice(), &imageCreateInfo, nullptr, (VkImage*)&m_Image);
 		m_ImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-		//Allocate memory for depth buffer
-		VkMemoryRequirements memoryRequirements;
-		vkGetImageMemoryRequirements(m_pGraphics->GetDevice(), (VkImage)m_Image, &memoryRequirements);
-		VkMemoryAllocateInfo memoryAllocateInfo = {};
-		memoryAllocateInfo.allocationSize = memoryRequirements.size;
-		m_MemorySize = (int)memoryRequirements.size;
-		m_pGraphics->MemoryTypeFromProperties(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocateInfo.memoryTypeIndex);
-		memoryAllocateInfo.pNext = nullptr;
-		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-
-		vkAllocateMemory(m_pGraphics->GetDevice(), &memoryAllocateInfo, nullptr, (VkDeviceMemory*)&m_Memory);
-		vkBindImageMemory(m_pGraphics->GetDevice(), (VkImage)m_Image, (VkDeviceMemory)m_Memory, 0);
+		VulkanAllocation allocation = m_pGraphics->GetAllocator()->Allocate((VkImage)m_Image, false);
+		m_MemorySize = allocation.Size;
+		vkBindImageMemory(m_pGraphics->GetDevice(), (VkImage)m_Image, allocation.Memory, allocation.Offset);
 	}
 	else
 	{
@@ -130,32 +121,10 @@ bool Texture2D::SetData(const unsigned int mipLevel, int x, int y, int width, in
 	createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vkCreateBuffer(m_pGraphics->GetDevice(), &createInfo, nullptr, &stagingBuffer);
 
-	VkDeviceMemory stagingMemory;
-	VkMemoryAllocateInfo allocateInfo;
-	VkMemoryRequirements memReqs = {};
-	vkGetBufferMemoryRequirements(m_pGraphics->GetDevice(), stagingBuffer, &memReqs);
-	allocateInfo.allocationSize = memReqs.size;
-	m_pGraphics->MemoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &allocateInfo.memoryTypeIndex);
-	allocateInfo.pNext = nullptr;
-	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	vkAllocateMemory(m_pGraphics->GetDevice(), &allocateInfo, nullptr, &stagingMemory);
+	VulkanAllocation allocation = m_pGraphics->GetAllocator()->Allocate(stagingBuffer, true);
 
-	vkBindBufferMemory(m_pGraphics->GetDevice(), stagingBuffer, stagingMemory, 0);
-
-	void* pTarget = nullptr;
-	vkMapMemory(m_pGraphics->GetDevice(), stagingMemory, 0, memReqs.size, 0, &pTarget);
-	memcpy(pTarget, pData, (size_t)memReqs.size);
-	vkUnmapMemory(m_pGraphics->GetDevice(), stagingMemory);
-
-	VkBufferImageCopy copyRegion = {};
-	copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	copyRegion.imageSubresource.baseArrayLayer = 0;
-	copyRegion.imageSubresource.layerCount = 1;
-	copyRegion.imageSubresource.mipLevel = 0;
-	copyRegion.bufferOffset = 0;
-	copyRegion.imageExtent.width = width;
-	copyRegion.imageExtent.height = height;
-	copyRegion.imageExtent.depth = 1;
+	vkBindBufferMemory(m_pGraphics->GetDevice(), stagingBuffer, allocation.Memory, allocation.Offset);
+	memcpy(allocation.pCpuPointer, pData, m_MemorySize);
 
 	std::unique_ptr<CommandBuffer> copyCmd = m_pGraphics->GetTempCommandBuffer(true);
 	
@@ -166,12 +135,12 @@ bool Texture2D::SetData(const unsigned int mipLevel, int x, int y, int width, in
 	subresourceRange.layerCount = 1;
 
 	SetLayout(copyCmd->GetBuffer(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, subresourceRange);
-	copyCmd->CopyImageToBuffer(stagingBuffer, this);
+	copyCmd->CopyBufferToImage(stagingBuffer, this);
 	SetLayout(copyCmd->GetBuffer(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, subresourceRange);
 
 	m_pGraphics->FlushCommandBuffer(copyCmd);
 
-	vkFreeMemory(m_pGraphics->GetDevice(), stagingMemory, nullptr);
+	m_pGraphics->GetAllocator()->Free(allocation);
 	vkDestroyBuffer(m_pGraphics->GetDevice(), stagingBuffer, nullptr);
 
 	return true;

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "UniformBuffer.h"
 #include "Graphics.h"
+#include "VulkanAllocator.h"
 
 UniformBuffer::UniformBuffer(Graphics* pGraphics) :
 	m_pGraphics(pGraphics)
@@ -10,8 +11,6 @@ UniformBuffer::UniformBuffer(Graphics* pGraphics) :
 
 UniformBuffer::~UniformBuffer()
 {
-	vkUnmapMemory(m_pGraphics->GetDevice(), m_Memory);
-	vkFreeMemory(m_pGraphics->GetDevice(), m_Memory, nullptr);
 	vkDestroyBuffer(m_pGraphics->GetDevice(), m_Buffer, nullptr);
 }
 
@@ -48,27 +47,12 @@ bool UniformBuffer::SetSize(const int size)
 		return false;
 	}
 
-	VkMemoryRequirements memoryRequirements = {};
-	vkGetBufferMemoryRequirements(m_pGraphics->GetDevice(), m_Buffer, &memoryRequirements);
-
-	VkMemoryAllocateInfo allocateInfo = {};
-	allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocateInfo.pNext = nullptr;
-	allocateInfo.allocationSize = (int)memoryRequirements.size;
-	m_pGraphics->MemoryTypeFromProperties(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &allocateInfo.memoryTypeIndex);
-	if (vkAllocateMemory(m_pGraphics->GetDevice(), &allocateInfo, nullptr, &m_Memory) != VK_SUCCESS)
+	VulkanAllocation allocation = m_pGraphics->GetAllocator()->Allocate(m_Buffer, true);
+	if(vkBindBufferMemory(m_pGraphics->GetDevice(), m_Buffer, allocation.Memory, allocation.Offset) != VK_SUCCESS)
 	{
 		return false;
 	}
-	if(vkBindBufferMemory(m_pGraphics->GetDevice(), m_Buffer, m_Memory, 0) != VK_SUCCESS)
-	{
-		return false;
-	}
-
-	if (vkMapMemory(m_pGraphics->GetDevice(), m_Memory, 0, m_BufferSize, 0, &m_pDataBegin) != VK_SUCCESS)
-	{
-		return false;
-	}
+	m_pDataBegin = allocation.pCpuPointer;
 	m_pCurrentTarget = m_pDataBegin;
 
 	return true;

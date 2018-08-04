@@ -20,11 +20,11 @@ public:
 	void SetViewport(const VkViewport& viewport);
 	void SetVertexBuffer(int index, VertexBuffer* pVertexBuffer);
 	void SetIndexBuffer(int index, IndexBuffer* pIndexBuffer);
-	void SetDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, const std::vector<unsigned int>& dynamicOffsets);
+	void SetDescriptorSet(VkPipelineLayout pipelineLayout, int setIndex, VkDescriptorSet set, const std::vector<unsigned int>& dynamicOffsets);
 	void Draw(unsigned int vertexCount, unsigned int vertexStart);
 	void DrawIndexed(unsigned int indexCount, unsigned int indexStart);
 
-	void CopyImageToBuffer(VkBuffer buffer, Texture2D* pImage);
+	void CopyBufferToImage(VkBuffer buffer, Texture2D* pImage);
 	void CopyBuffer(VkBuffer source, VkBuffer target, int size);
 
 	VkCommandBuffer GetBuffer() const { return m_Buffer; }

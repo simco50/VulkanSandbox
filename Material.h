@@ -2,6 +2,7 @@
 
 class Shader;
 class Graphics;
+class Texture2D;
 
 class Material
 {
@@ -10,23 +11,17 @@ public:
 	~Material();
 
 	VkPipeline GetPipeline() { return m_Pipeline; }
-	VkPipelineLayout GetPipelineLayout() { return m_PipelineLayout; }
-
 	virtual void Load(const std::string& fileName);
+	VkDescriptorSet GetDescriptorSet() { return m_DescriptorSet; }
 
-	VkDescriptorSet GetDescriptorSet(const int index) const { return m_DescriptorSets[index]; }
-	const std::vector<VkDescriptorSet>& GetDescriptorSets() const { return m_DescriptorSets; }
-	
 protected:
+	VkDescriptorSet m_DescriptorSet;
 	Graphics * m_pGraphics;
-
 	VkPipeline m_Pipeline;
-	VkPipelineLayout m_PipelineLayout;
-	VkDescriptorSetLayout m_DescriptorSetLayout;
-	VkRenderPass m_RenderPass;
-	std::vector<VkDescriptorSet> m_DescriptorSets;
 	std::vector<std::unique_ptr<Shader>> m_Shaders;
 
 	void GetTypeAndSizeFromString(const std::string& type, VkFormat& format, int& size);
 	VkShaderStageFlagBits GetShaderStageFromString(const std::string& stage);
+
+	std::map<int, std::unique_ptr<Texture2D>> m_Textures;
 };

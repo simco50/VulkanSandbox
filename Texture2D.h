@@ -24,7 +24,6 @@ public:
 private:
 	Graphics * m_pGraphics;
 	GpuObject m_Image;
-	GpuObject m_Memory;
 	GpuObject m_View;
 	GpuObject m_Sampler = VK_NULL_HANDLE;
 	uint32 m_ImageLayout = 0;

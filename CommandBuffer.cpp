@@ -91,9 +91,9 @@ void CommandBuffer::SetIndexBuffer(int index, IndexBuffer* pIndexBuffer)
 	vkCmdBindIndexBuffer(m_Buffer, pIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
 }
 
-void CommandBuffer::SetDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, const std::vector<unsigned int>& dynamicOffsets)
+void CommandBuffer::SetDescriptorSet(VkPipelineLayout pipelineLayout, int setIndex, VkDescriptorSet set, const std::vector<unsigned int>& dynamicOffsets)
 {
-	vkCmdBindDescriptorSets(m_Buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, (unsigned int)sets.size(), sets.data(), (unsigned int)dynamicOffsets.size(), dynamicOffsets.data());
+	vkCmdBindDescriptorSets(m_Buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, setIndex, 1, &set, dynamicOffsets.size(), dynamicOffsets.data());
 }
 
 void CommandBuffer::Draw(unsigned int vertexCount, unsigned int vertexStart)
@@ -106,7 +106,7 @@ void CommandBuffer::DrawIndexed(unsigned int indexCount, unsigned int indexStart
 	vkCmdDrawIndexed(m_Buffer, indexCount, 1, indexStart, 0, 0);
 }
 
-void CommandBuffer::CopyImageToBuffer(VkBuffer buffer, Texture2D* pImage)
+void CommandBuffer::CopyBufferToImage(VkBuffer buffer, Texture2D* pImage)
 {
 	VkBufferImageCopy copyRegion = {};
 	copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;

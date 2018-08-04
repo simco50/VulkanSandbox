@@ -2,7 +2,13 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (binding = 1) uniform sampler2D samplerColor;
+layout (std140, binding = 2, set = 0) uniform PerFrameData 
+{
+	float deltaTime;
+	int frameCount;
+} perFrameData;
+
+layout (set = 3, binding = 1) uniform sampler2D samplerColor;
 
 layout (location = 0) in vec3 normal;
 layout (location = 1) in vec2 texCoord;
@@ -18,5 +24,6 @@ void main()
 	vec3 n = normalize(normal);
 	float diffuse = dot(n, lighDirection);
 
-	outColor = diffuse * c;
+	vec4 color = vec4(1,1,1,1) * sin(perFrameData.frameCount);
+	outColor = diffuse * c * color;
 }

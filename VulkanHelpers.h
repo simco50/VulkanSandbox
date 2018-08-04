@@ -1,5 +1,8 @@
 #pragma once
 
+#define VK_LOG(code) \
+if((int)code > 0) { std::cout << "Vulkan error at " << __FILE__ << "(" << __LINE__ << ")" << std::endl; abort(); } \
+
 namespace VkHelpers
 {
 	struct PipelineInputAssemblyState

@@ -16,7 +16,6 @@ public:
 private:
 	Graphics * m_pGraphics;
 	VkBuffer m_Buffer;
-	VkDeviceMemory m_Memory;
 
 	int m_Size = 0;
 	int m_BufferSize = 0;

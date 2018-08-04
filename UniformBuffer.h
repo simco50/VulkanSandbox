@@ -22,7 +22,6 @@ public:
 private:
 	Graphics * m_pGraphics;
 	VkBuffer m_Buffer;
-	VkDeviceMemory m_Memory;
 
 	void* m_pCurrentTarget = nullptr;
 	void* m_pDataBegin = nullptr;

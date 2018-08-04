@@ -7,6 +7,7 @@
 
 #include "VulkanHelpers.h"
 #include "DescriptorPool.h"
+#include "Texture2D.h"
 
 Material::Material(Graphics* pGraphics) :
 	m_pGraphics(pGraphics)
@@ -16,10 +17,8 @@ Material::Material(Graphics* pGraphics) :
 
 Material::~Material()
 {
-	vkDestroyPipelineLayout(m_pGraphics->GetDevice(), m_PipelineLayout, nullptr);
-	vkDestroyRenderPass(m_pGraphics->GetDevice(), m_RenderPass, nullptr);
+	m_Textures.clear();
 	vkDestroyPipeline(m_pGraphics->GetDevice(), m_Pipeline, nullptr);
-	vkDestroyDescriptorSetLayout(m_pGraphics->GetDevice(), m_DescriptorSetLayout, nullptr);
 }
 
 void Material::GetTypeAndSizeFromString(const std::string& type, VkFormat& format, int& size)
@@ -38,6 +37,11 @@ void Material::GetTypeAndSizeFromString(const std::string& type, VkFormat& forma
 	{
 		format = VK_FORMAT_R32G32_SFLOAT;
 		size = 8;
+	}
+	else if (type == "mat44")
+	{
+		format = VK_FORMAT_UNDEFINED;
+		size = sizeof(glm::mat4);
 	}
 }
 
@@ -87,6 +91,25 @@ void Material::Load(const std::string& fileName)
 		pShaderElement = pShaderElement->NextSiblingElement();
 	}
 
+	pCurrent = pRootNode->FirstChildElement("Resources");
+	XML::XMLElement* pResource = pCurrent->FirstChildElement();
+	while (pResource)
+	{
+		if (strcmp(pResource->Value(), "Texture2D") == 0)
+		{
+			std::string binding = pResource->Attribute("binding");
+			std::string source = pResource->Attribute("source");
+			std::unique_ptr<Texture2D> pTexture = std::make_unique<Texture2D>(m_pGraphics);
+			pTexture->Load(source);
+
+			if (binding == "Diffuse")
+			{
+				m_Textures[(int)DescriptorBinding::DiffuseTexture] = std::move(pTexture);
+			}
+		}
+		pResource = pResource->NextSiblingElement();
+	}
+
 	pCurrent = pRootNode->FirstChildElement("Pipeline");
 	pCurrent = pCurrent->FirstChildElement("VertexLayout");
 	XML::XMLElement* pVertexElement = pCurrent->FirstChildElement();
@@ -117,95 +140,6 @@ void Material::Load(const std::string& fileName)
 	vertexStateInfo.pVertexBindingDescriptions = &bindingDesc;
 	vertexStateInfo.vertexAttributeDescriptionCount = (unsigned int)attributeDesc.size();
 	vertexStateInfo.pVertexAttributeDescriptions = attributeDesc.data();
-
-	pCurrent = pRootNode->FirstChildElement("Pipeline");
-	pCurrent = pCurrent->FirstChildElement("Descriptors");
-
-	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
-	
-	XML::XMLElement* pDescriptor = pCurrent->FirstChildElement();
-	while (pDescriptor != nullptr)
-	{
-		VkDescriptorSetLayoutBinding binding;
-
-		std::string type = pDescriptor->Name();
-		std::string name = pDescriptor->Attribute("name");
-		bool dynamic = pDescriptor->Attribute("dynamic") ? true : false;
-
-		binding.binding = stoi(std::string(pDescriptor->Attribute("binding")));
-		binding.descriptorCount = 1;
-		binding.stageFlags = GetShaderStageFromString(pDescriptor->Attribute("shaderstage"));
-		binding.pImmutableSamplers = nullptr;
-
-		if (type == "UniformBuffer")
-		{
-			binding.descriptorType = dynamic ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		}
-		else if (type == "Texture2D")
-		{
-			binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		}
-
-		layoutBindings.push_back(binding);
-		pDescriptor = pDescriptor->NextSiblingElement();
-	}
-
-	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
-	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorLayoutCreateInfo.pNext = nullptr;
-	descriptorLayoutCreateInfo.flags = 0;
-	descriptorLayoutCreateInfo.bindingCount = (uint32)layoutBindings.size();
-	descriptorLayoutCreateInfo.pBindings = layoutBindings.data();
-	vkCreateDescriptorSetLayout(m_pGraphics->GetDevice(), &descriptorLayoutCreateInfo, nullptr, &m_DescriptorSetLayout);
-
-	//Create pipeline layout
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = VkHelpers::PipelineLayoutDescriptor();
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_DescriptorSetLayout;
-	vkCreatePipelineLayout(m_pGraphics->GetDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout);
-
-	//Allocate descriptor set
-	m_DescriptorSets.push_back(m_pGraphics->GetDescriptorPool()->Allocate(m_DescriptorSetLayout));
-
-	//Create render pass
-	//Attachments
-	std::vector<VkAttachmentDescription> attachments;
-	attachments.push_back(VkHelpers::AttachmentDescriptor::ConstructColor(VK_FORMAT_B8G8R8A8_UNORM, 1));
-	attachments.push_back(VkHelpers::AttachmentDescriptor::ConstructDepth(VK_FORMAT_D16_UNORM, 1));
-
-	//Subpass
-	VkAttachmentReference colorReference = {};
-	colorReference.attachment = 0;
-	colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference depthReference = {};
-	depthReference.attachment = 1;
-	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	VkSubpassDescription subPassDescription = {};
-	subPassDescription.colorAttachmentCount = 1;
-	subPassDescription.flags = 0;
-	subPassDescription.inputAttachmentCount = 0;
-	subPassDescription.pColorAttachments = &colorReference;
-	subPassDescription.pDepthStencilAttachment = &depthReference;
-	subPassDescription.pInputAttachments = nullptr;
-	subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subPassDescription.pPreserveAttachments = nullptr;
-	subPassDescription.preserveAttachmentCount = 0;
-	subPassDescription.pResolveAttachments = nullptr;
-
-	//Render pass
-	VkRenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.attachmentCount = attachments.size();
-	renderPassInfo.dependencyCount = 0;
-	renderPassInfo.flags = 0;
-	renderPassInfo.pAttachments = attachments.data();
-	renderPassInfo.pDependencies = nullptr;
-	renderPassInfo.pNext = nullptr;
-	renderPassInfo.pSubpasses = &subPassDescription;
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.subpassCount = 1;
-	vkCreateRenderPass(m_pGraphics->GetDevice(), &renderPassInfo, nullptr, &m_RenderPass);
 
 	//Dynamic state
 	VkDynamicState dynamicStateEnables[VK_DYNAMIC_STATE_RANGE_SIZE];
@@ -255,7 +189,7 @@ void Material::Load(const std::string& fileName)
 
 	//Graphics pipeline
 	VkGraphicsPipelineCreateInfo pipelineInfo = VkHelpers::GraphicsPipelineDescriptor();
-	pipelineInfo.layout = m_PipelineLayout;
+	pipelineInfo.layout = m_pGraphics->GetPipelineLayout();
 	pipelineInfo.pVertexInputState = &vertexStateInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
 	pipelineInfo.pRasterizationState = &rasterizerStateInfo;
@@ -266,7 +200,31 @@ void Material::Load(const std::string& fileName)
 	pipelineInfo.pDepthStencilState = &depthStencilStateInfo;
 	pipelineInfo.pStages = shaderCreateInfos.data();
 	pipelineInfo.stageCount = (unsigned int)shaderCreateInfos.size();
-	pipelineInfo.renderPass = m_RenderPass;
+	pipelineInfo.renderPass = m_pGraphics->GetRenderPass();
 
 	vkCreateGraphicsPipelines(m_pGraphics->GetDevice(), m_pGraphics->GetPipelineCache(), 1, &pipelineInfo, nullptr, &m_Pipeline);
+	
+	m_DescriptorSet = m_pGraphics->GetDestriptorSet(DescriptorGroup::Material);
+
+	std::vector<VkWriteDescriptorSet> writes;
+	for (const auto& tex : m_Textures)
+	{
+		VkDescriptorImageInfo texInfo;
+		texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		texInfo.imageView = (VkImageView)tex.second->GetView();
+		texInfo.sampler = (VkSampler)tex.second->GetSampler();
+
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.dstBinding = tex.first;
+		write.dstSet = m_DescriptorSet;
+		write.pImageInfo = &texInfo;
+		write.pNext = nullptr;
+		write.dstArrayElement = 0;
+
+		writes.push_back(write);
+	}
+	vkUpdateDescriptorSets(m_pGraphics->GetDevice(), writes.size(), writes.data(), 0, nullptr);
 }

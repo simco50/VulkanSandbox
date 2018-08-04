@@ -2,11 +2,17 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (std140, binding = 0, set = 0) uniform bufferVals 
+layout (std140, binding = 2, set = 0) uniform PerFrameData 
+{
+	float deltaTime;
+	int frameCount;
+} perFrameData;
+
+layout (std140, binding = 0, set = 2) uniform PerModelData 
 {
 	mat4 m;
     mat4 mvp;
-} myBufferVals;
+} perModelData;
 
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 inNormal;
@@ -17,7 +23,8 @@ layout (location = 1) out vec2 outTexCoord;
 
 void main() 
 {
-	outNormal = mat3(myBufferVals.m) * inNormal;
+	outNormal = mat3(perModelData.m) * inNormal;
 	outTexCoord = inTexCoord;
-	gl_Position = myBufferVals.mvp * vec4(pos, 1);
+
+	gl_Position = perModelData.mvp * vec4(pos, 1);
 }

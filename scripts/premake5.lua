@@ -49,6 +49,15 @@ workspace "VulkanBase"
 			"sdl2main.lib",		
 		}
 
+		vpaths
+		{
+			["Core"] = { "../DescriptorPool.*", "../VulkanHelpers.*", "../Graphics.*", "../DecriptorPool.*", "../CommandBuffer.*" },
+			["Buffers"] = { "../Texture*", "../IndexBuffer.*", "../UniformBuffer.*", "../VertexBuffer.*" },
+			["Pipeline"] = { "../Material.*", "../Shader.*", "../Drawable.*" },
+			["Objects"] = { "../Cube.*" },
+			["External"] = { "../stb_image.*", "../tinyxml2.*" }
+		}
+
 		postbuildcommands
 		{ 
 			"{COPY} \"$(SolutionDir)external\\SDL2-2.0.7\\lib\\%{cfg.platform}\\SDL2.dll\" \"$(OutDir)\"",
