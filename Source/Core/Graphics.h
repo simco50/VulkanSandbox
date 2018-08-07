@@ -9,6 +9,7 @@ class Drawable;
 class Material;
 class DescriptorPool;
 class VulkanAllocator;
+class Mesh;
 
 enum class DescriptorGroup
 {
@@ -132,6 +133,7 @@ private:
 	UniformBuffer* m_pUniformBuffer = nullptr;
 	UniformBuffer* m_pUniformBufferPerFrame = nullptr;
 
+	std::unique_ptr<Mesh> m_pMesh;
 	std::vector<std::unique_ptr<Drawable>> m_Drawables;
 
 	glm::mat4 m_ProjectionMatrix;

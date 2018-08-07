@@ -2,17 +2,17 @@
 #include "Graphics.h"
 
 #include <SDL_syswm.h>
-#include "Shader.h"
-#include "UniformBuffer.h"
-#include "VertexBuffer.h"
-#include "IndexBuffer.h"
-#include "Texture2D.h"
-#include "Cube.h"
-#include "Drawable.h"
-#include "Material.h"
+#include "Content/Shader.h"
+#include "Resource/UniformBuffer.h"
+#include "Resource/VertexBuffer.h"
+#include "Resource/IndexBuffer.h"
+#include "Resource/Texture2D.h"
+#include "Resource/Drawable.h"
+#include "Content/Material.h"
 #include "DescriptorPool.h"
 #include "VulkanAllocator.h"
-#include "VulkanHelpers.h"
+#include "Helpers/VulkanHelpers.h"
+#include "Content/CubeMesh.h"
 
 Graphics::Graphics()
 {
@@ -51,23 +51,20 @@ void Graphics::Initialize()
 
 #pragma endregion
 
-	std::unique_ptr<Cube> pCube = std::make_unique<Cube>(this);
-	pCube->Create(1, 1, 1);
-	pCube->SetPosition(-1.0f, 0.0f, 1.0f);
-	pCube->SetMaterial(m_pMaterial.get());
-	m_Drawables.push_back(std::move(pCube));
+	m_pMesh = std::make_unique<CubeMesh>(this);
 
-	pCube = std::make_unique<Cube>(this);
-	pCube->Create(1, 0.5f, 1);
-	pCube->SetPosition(2.0f, 0.0f, 1.0f);
-	pCube->SetMaterial(m_pMaterial.get());
-	m_Drawables.push_back(std::move(pCube));
+	for (int i = 0; i < 10; ++i)
+	{
+		std::unique_ptr<Drawable> pCube = std::make_unique<Drawable>(this, m_pMesh.get());
+		pCube->SetMaterial(m_pMaterial.get());
+		m_Drawables.push_back(std::move(pCube));
+	}
 
 	m_pUniformBuffer = new UniformBuffer(this);
-	m_pUniformBuffer->SetSize(sizeof(glm::mat4) * 2);
+	m_pUniformBuffer->SetSize(sizeof(glm::mat4) * m_Drawables.size(), 100);
 
 	m_pUniformBufferPerFrame = new UniformBuffer(this);
-	m_pUniformBufferPerFrame->SetSize(sizeof(float) + sizeof(int));
+	m_pUniformBufferPerFrame->SetSize(sizeof(float) + sizeof(int), 1);
 
 	VkDescriptorBufferInfo ubInfo;
 
@@ -714,7 +711,7 @@ void Graphics::UpdateUniforms()
 	for (size_t i = 0; i < m_Drawables.size(); ++i)
 	{
 		m_Drawables[i]->SetRotation(0.0f, (float)pow(-1, i), 0.0f, (float)m_FrameCount / 50.0f);
-		m_Drawables[i]->SetPosition((float)pow(-1, i) * 2, (float)pow(-1, i) * sin((float)m_FrameCount / 50.0f), 0);
+		m_Drawables[i]->SetPosition((float)pow(-1, i) * 2 + i, (float)pow(-1, i) * sin((float)(m_FrameCount) / 50.0f) - 0.14f * i * (float)pow(-1, i), 0);
 
 		ModelBufferData.ModelMatrix = m_Drawables[i]->GetWorldMatrix();
 		ModelBufferData.MvpMatrix = m_ProjectionMatrix * m_ViewMatrix * ModelBufferData.ModelMatrix;
@@ -755,11 +752,11 @@ void Graphics::BuildCommandBuffers()
 		m_CommandBuffers[i]->SetDescriptorSet(m_PipelineLayout, (int)DescriptorGroup::Material, m_pMaterial->GetDescriptorSet(), {});
 		for (size_t j = 0; j < m_Drawables.size(); ++j)
 		{
-			m_CommandBuffers[i]->SetVertexBuffer(0, m_Drawables[j]->GetVertexBuffer());
-			m_CommandBuffers[i]->SetIndexBuffer(0, m_Drawables[j]->GetIndexBuffer());
+			m_CommandBuffers[i]->SetVertexBuffer(0, m_Drawables[j]->GetMesh()->GetVertexBuffer());
+			m_CommandBuffers[i]->SetIndexBuffer(0, m_Drawables[j]->GetMesh()->GetIndexBuffer());
 
 			m_CommandBuffers[i]->SetDescriptorSet(m_PipelineLayout, (int)DescriptorGroup::Object, m_ObjectDescriptorSet, { (unsigned int)m_pUniformBuffer->GetOffset((int)j) });
-			m_CommandBuffers[i]->DrawIndexed(m_Drawables[j]->GetIndexBuffer()->GetCount(), 0);
+			m_CommandBuffers[i]->DrawIndexed(m_Drawables[j]->GetMesh()->GetIndexBuffer()->GetCount(), 0);
 		}
 		m_CommandBuffers[i]->EndRenderPass();
 		m_CommandBuffers[i]->End();
@@ -807,6 +804,8 @@ void Graphics::Shutdown()
 {
 	m_pMaterial.reset();
 	m_Drawables.clear();
+
+	m_pMesh.reset();
 
 	delete m_pUniformBuffer;
 	delete m_pUniformBufferPerFrame;

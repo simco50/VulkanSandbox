@@ -1,13 +1,13 @@
 #include "stdafx.h"
 #include "Material.h"
 
-#include "tinyxml2.h"
+#include "External/tinyxml2.h"
 #include "Shader.h"
-#include "Graphics.h"
+#include "Core/Graphics.h"
 
-#include "VulkanHelpers.h"
-#include "DescriptorPool.h"
-#include "Texture2D.h"
+#include "Helpers/VulkanHelpers.h"
+#include "Core/DescriptorPool.h"
+#include "Resource/Texture2D.h"
 
 Material::Material(Graphics* pGraphics) :
 	m_pGraphics(pGraphics)

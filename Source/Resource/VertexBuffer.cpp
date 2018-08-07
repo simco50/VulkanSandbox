@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "VertexBuffer.h"
-#include "Graphics.h"
-#include "VulkanAllocator.h"
+#include "Core/Graphics.h"
+#include "Core/VulkanAllocator.h"
 
 VertexBuffer::VertexBuffer(Graphics* pGraphics) :
 	m_pGraphics(pGraphics)

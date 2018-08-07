@@ -19,19 +19,17 @@ workspace "VulkanBase"
 		targetdir "../Build/$(ProjectName)_$(Platform)_$(Configuration)"
 		objdir "!../Build/Intermediate/$(ProjectName)_$(Platform)_$(Configuration)"
 		pchheader "stdafx.h"
-		pchsource "../stdafx.cpp"
+		pchsource "../Source/stdafx.cpp"
 		kind "ConsoleApp"
 
 		files
 		{ 
-			"../*.h",
-			"../*.hpp",
-			"../*.cpp",
-			"../*.inl"
+			"../Source/**",
 		}
 
 		includedirs 
 		{ 
+			"$(ProjectDir)/Source",
 			"../external/SDL2-2.0.7/include",
 			"../external/VulkanSDK/1.1.77.0/include",
 			"../external/glm",
@@ -47,15 +45,6 @@ workspace "VulkanBase"
 			"vulkan-1.lib",		
 			"sdl2.lib",		
 			"sdl2main.lib",		
-		}
-
-		vpaths
-		{
-			["Core"] = { "../DescriptorPool.*", "../VulkanHelpers.*", "../Graphics.*", "../DecriptorPool.*", "../CommandBuffer.*" },
-			["Buffers"] = { "../Texture*", "../IndexBuffer.*", "../UniformBuffer.*", "../VertexBuffer.*" },
-			["Pipeline"] = { "../Material.*", "../Shader.*", "../Drawable.*" },
-			["Objects"] = { "../Cube.*" },
-			["External"] = { "../stb_image.*", "../tinyxml2.*" }
 		}
 
 		postbuildcommands

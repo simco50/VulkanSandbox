@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "UniformBuffer.h"
-#include "Graphics.h"
-#include "VulkanAllocator.h"
+#include "Core/Graphics.h"
+#include "Core/VulkanAllocator.h"
 
 UniformBuffer::UniformBuffer(Graphics* pGraphics) :
 	m_pGraphics(pGraphics)
@@ -21,17 +21,18 @@ void* UniformBuffer::Map()
 
 void UniformBuffer::Unmap()
 {
-	m_pCurrentTarget = (char*)m_pCurrentTarget + m_BufferSize / m_pGraphics->GetBackbufferCount();
+	m_pCurrentTarget = (char*)m_pCurrentTarget + m_Stride;
 }
 
-bool UniformBuffer::SetSize(const int size)
+bool UniformBuffer::SetSize(const int size, const int maxRenames)
 {
 	int alignment = (int)m_pGraphics->GetDeviceProperties().limits.minUniformBufferOffsetAlignment;
 	int desiredSize = size;
 	desiredSize = (desiredSize + alignment - 1) & ~(alignment - 1);
 	desiredSize *= m_pGraphics->GetBackbufferCount();
 
-	m_BufferSize = desiredSize;
+	m_Stride = desiredSize;
+	m_BufferSize = m_Stride * maxRenames;
 
 	VkBufferCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -40,7 +41,7 @@ bool UniformBuffer::SetSize(const int size)
 	createInfo.pQueueFamilyIndices = nullptr;
 	createInfo.queueFamilyIndexCount = 0;
 	createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	createInfo.size = desiredSize;
+	createInfo.size = m_BufferSize;
 	createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	if (vkCreateBuffer(m_pGraphics->GetDevice(), &createInfo, nullptr, &m_Buffer) != VK_SUCCESS)
 	{
@@ -66,9 +67,9 @@ bool UniformBuffer::SetData(const int offset, const int size, void* pData)
 	return true;
 }
 
-int UniformBuffer::GetOffset(int frameIndex) const
+int UniformBuffer::GetOffset(int objectOffset) const
 {
-	return frameIndex * m_BufferSize / m_pGraphics->GetBackbufferCount();
+	return m_pGraphics->GetBackbufferIndex() * m_Stride * m_Renames + m_Stride * objectOffset;
 }
 
 void UniformBuffer::Flush()

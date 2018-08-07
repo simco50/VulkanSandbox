@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "Texture2D.h"
-#include "Graphics.h"
+#include "Core/Graphics.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#include "VulkanAllocator.h"
+#include "External/stb_image.h"
+#include "Core/VulkanAllocator.h"
 
 
 Texture2D::Texture2D(Graphics* pGraphics) :

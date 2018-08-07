@@ -3,11 +3,11 @@
 #include "IndexBuffer.h"
 #include "VertexBuffer.h"
 
-Drawable::Drawable(Graphics* pGraphics) : 
-	m_pGraphics(pGraphics)
+Drawable::Drawable(Graphics* pGraphics, Mesh* pMesh):
+	m_pGraphics(pGraphics), m_pMesh(pMesh)
 {
-}
 
+}
 
 Drawable::~Drawable()
 {

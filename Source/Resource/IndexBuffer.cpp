@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "IndexBuffer.h"
-#include "Graphics.h"
-#include "VulkanAllocator.h"
+#include "Core/Graphics.h"
+#include "Core/VulkanAllocator.h"
 
 IndexBuffer::IndexBuffer(Graphics* pGraphics) :
 	m_pGraphics(pGraphics)

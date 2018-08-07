@@ -50,9 +50,9 @@ public:
 	VulkanAllocation Allocate(VkImage image, bool cpuVisible);
 	VulkanAllocation Allocate(VkBuffer buffer, bool cpuVisible);
 	void Free(VulkanAllocation& allocation);
+	bool MemoryTypeFromProperties(uint32_t typeBits, VkFlags requirements_mask, uint32_t *typeIndex);
 
 private:
-	bool MemoryTypeFromProperties(uint32_t typeBits, VkFlags requirements_mask, uint32_t *typeIndex);
 	VulkanAllocation Allocate(VkMemoryRequirements& requirements, bool cpuVisible);
 
 	static const int POOL_SIZE = 4096 * 40960;

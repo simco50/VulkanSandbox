@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "CommandBuffer.h"
 #include "Graphics.h"
-#include "VertexBuffer.h"
-#include "IndexBuffer.h"
-#include "Texture2D.h"
+#include "Resource/VertexBuffer.h"
+#include "Resource/IndexBuffer.h"
+#include "Resource/Texture2D.h"
 
 
 CommandBuffer::CommandBuffer(Graphics* pGraphics) :

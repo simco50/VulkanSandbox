@@ -1,19 +1,10 @@
 #include "stdafx.h"
-#include "Cube.h"
-#include "IndexBuffer.h"
-#include "VertexBuffer.h"
+#include "CubeMesh.h"
+#include "Resource/IndexBuffer.h"
+#include "Resource/VertexBuffer.h"
 
-
-Cube::Cube(Graphics* pGraphics) : Drawable(pGraphics)
-{
-}
-
-
-Cube::~Cube()
-{
-}
-
-void Cube::Create(float width, float height, float depth)
+CubeMesh::CubeMesh(Graphics* pGraphics) :
+	Mesh(pGraphics)
 {
 	struct Vertex
 	{
@@ -22,15 +13,15 @@ void Cube::Create(float width, float height, float depth)
 		glm::vec2 TexCoord;
 	};
 
-	float hw = width / 2.0f;
-	float hh = height / 2.0f;
-	float hd = depth / 2.0f;
+	float hw = 1.0f / 2.0f;
+	float hh = 1.0f / 2.0f;
+	float hd = 1.0f / 2.0f;
 
 	//Vertex buffer
 	std::vector<Vertex> vertices =
 	{
-	//front 0
-	{ glm::vec3(-hw, hh, -hd), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(0, 0) },
+		//front 0
+		{ glm::vec3(-hw, hh, -hd), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(0, 0) },
 	{ glm::vec3(hw, hh, -hd), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(1, 0) },
 	{ glm::vec3(hw, -hh, -hd), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(1, 1) },
 	{ glm::vec3(-hw, -hh, -hd), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec2(1, 0) },
@@ -86,11 +77,15 @@ void Cube::Create(float width, float height, float depth)
 		21, 20, 22
 	};
 
-	m_pIndexBuffer = std::make_unique<IndexBuffer>(m_pGraphics);
+	m_pIndexBuffer = std::make_unique<IndexBuffer>(pGraphics);
 	m_pIndexBuffer->SetSize((int)indices.size(), false, false);
 	m_pIndexBuffer->SetData(indices.data());
 
-	m_pVertexBuffer = std::make_unique<VertexBuffer>(m_pGraphics);
+	m_pVertexBuffer = std::make_unique<VertexBuffer>(pGraphics);
 	m_pVertexBuffer->SetSize((int)vertices.size() * sizeof(Vertex));
 	m_pVertexBuffer->SetData((int)vertices.size(), 0, vertices.data());
+}
+
+CubeMesh::~CubeMesh()
+{
 }
